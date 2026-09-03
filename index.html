@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Battle of Haldighati 3D</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400..900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <!-- Three.js Canvas Container -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- UI Overlay -->
+    <div id="ui-layer">
+      <!-- Start Screen -->
+      <div id="start-screen" class="screen active">
+        <div class="content-box">
+          <h1 class="title">The Battle of Haldighati</h1>
+          <p class="subtitle">June 18, 1576</p>
+          <p class="instructions">
+            Ride Chetak through the Aravalli hills.<br>
+            Dodge obstacles and defeat the Mughal soldiers.<br><br>
+            <b>Controls:</b><br>
+            A / D or Left / Right Arrows to Move<br>
+            W or Up Arrow to Jump<br>
+            Space to Attack<br>
+          </p>
+          <button id="start-btn" class="primary-btn">Ride to Glory</button>
+        </div>
+      </div>
+
+      <!-- HUD -->
+      <div id="hud-screen" class="screen">
+        <div class="top-bar">
+          <div class="health-container">
+            <span>Chetak</span>
+            <div class="health-bar-bg">
+              <div id="health-fill"></div>
+            </div>
+          </div>
+          <div class="score-container">
+            Score: <span id="score-display">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game Over Screen -->
+      <div id="game-over-screen" class="screen">
+        <div class="content-box">
+          <h1 class="title" style="color: #ff4a4a;">Fallen in Battle</h1>
+          <p class="subtitle">The legacy of Mewar lives on.</p>
+          <h2 class="final-score">Final Score: <span id="final-score-display">0</span></h2>
+          <button id="restart-btn" class="primary-btn">Ride Again</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
