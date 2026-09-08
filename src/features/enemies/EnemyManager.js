@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export class Enemies {
+export class EnemyManager {
   constructor(scene, player) {
     this.scene = scene;
     this.player = player;

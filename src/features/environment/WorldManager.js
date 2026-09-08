@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export class World {
+export class WorldManager {
   constructor(scene) {
     this.scene = scene;
     this.terrainChunks = [];

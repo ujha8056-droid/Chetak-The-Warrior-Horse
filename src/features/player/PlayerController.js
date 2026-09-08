@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export class Player {
+export class PlayerController {
   constructor(scene) {
     this.scene = scene;
     
