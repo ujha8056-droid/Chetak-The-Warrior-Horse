@@ -255,18 +255,42 @@ export class Player {
     this.takeDamage(100); // Instantly die
   }
 
-  update(delta) {
+  reset() {
+    this.health = 100;
+    this.isFalling = false;
+    this.isJumping = false;
+    this.yVelocity = 0;
+    this.isAttacking = false;
+    this.attackTimer = 0;
+    
+    // Reset positions and rotations to default
+    this.group.position.set(0, 0, 20);
+    this.group.rotation.set(0, 0, 0);
+    this.horseGroup.rotation.set(0, 0, 0);
+    this.rightArmGroup.rotation.set(0, 0, 0);
+    
+    // Update UI
+    const healthFill = document.getElementById('health-fill');
+    if (healthFill) {
+      healthFill.style.width = '100%';
+    }
+  }
+
+  update(delta, score = 0) {
     if (this.isFalling) {
       this.group.position.y -= 50 * delta;
       this.horseGroup.rotation.x -= 10 * delta;
       return; // Skip other logic
     }
 
+    // Delay open ground physics slightly so terrain chunks have time to reach player
+    const isOpenGroundPhysics = score > 580;
+
     // Calculate base Y and Roll for wall running
     let targetBaseY = 0;
     let targetRoll = 0;
     
-    if (Math.abs(this.group.position.x) > 20) {
+    if (!isOpenGroundPhysics && Math.abs(this.group.position.x) > 20) {
       targetBaseY = (Math.abs(this.group.position.x) - 20) * 1.5;
       targetRoll = this.group.position.x > 0 ? Math.atan(1.5) : -Math.atan(1.5);
     }

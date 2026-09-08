@@ -192,3 +192,81 @@ h1, h2, h3, .title {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Intro Screen Styles */
+.intro-screen {
+  background: linear-gradient(135deg, #120b07, #3a1d0b, #8b4513);
+  z-index: 100; /* Ensure it stays on top of the canvas */
+}
+
+.scene {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.scene::before {
+  content: "";
+  position: absolute;
+  width: 700px;
+  height: 700px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 180, 70, 0.35), transparent 70%);
+  filter: blur(40px);
+}
+
+.hero-image {
+  position: relative;
+  z-index: 2;
+  width: min(90vw, 700px);
+  max-height: 55vh;
+  object-fit: contain;
+  filter: drop-shadow(0 25px 35px rgba(0, 0, 0, 0.7)) contrast(1.05) saturate(1.1);
+  margin-bottom: 2rem;
+  animation: floatIn 1s ease-out;
+}
+
+.hero-bottom-container {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  padding: 1.5rem 3rem;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  animation: floatIn 0.8s ease-out 0.2s both;
+}
+
+.hero-title {
+  color: #fff;
+  font-family: 'Cinzel', serif;
+  font-size: clamp(24px, 4vw, 36px);
+  font-weight: bold;
+  letter-spacing: 3px;
+  text-align: center;
+  text-shadow: 0 3px 10px #000, 0 0 20px rgba(255, 150, 50, 0.5);
+  margin-bottom: 0.5rem;
+}
+
+.hero-subtitle {
+  font-size: 1.1rem;
+  color: #ccc;
+  letter-spacing: 1px;
+}
+
+.hero-controls {
+  font-size: 0.95rem;
+  color: #ddd;
+  margin-bottom: 1rem;
+}

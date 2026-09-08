@@ -6,11 +6,11 @@ export class Enemies {
     this.player = player;
     this.entities = []; // Array of enemy meshes and obstacles
     this.spawnTimer = 0;
-    this.spawnRate = 1.5; // Spawn an entity every 1.5 seconds initially
+    this.spawnRate = 0.8; // Spawn an entity every 0.8 seconds initially
     this.speed = 50; // Should match world chunk speed
   }
 
-  spawnEntity() {
+  spawnEntity(gameContext) {
     const rand = Math.random();
     let mesh;
     
@@ -64,6 +64,8 @@ export class Enemies {
     // Spawn far away in the negative z direction
     mesh.position.z = -200;
     
+    const isOpenGround = gameContext && gameContext.score > 500;
+
     if (mesh.userData.type === 'pitfall') {
       // Spawn pitfall on the flat ground only
       mesh.position.x = (Math.random() - 0.5) * 30;
@@ -74,7 +76,7 @@ export class Enemies {
       
       // Calculate y and rotation if on the wall
       let targetBaseY = 0;
-      if (Math.abs(mesh.position.x) > 20) {
+      if (!isOpenGround && Math.abs(mesh.position.x) > 20) {
         targetBaseY = (Math.abs(mesh.position.x) - 20) * 1.5;
         mesh.rotation.z = mesh.position.x > 0 ? Math.atan(1.5) : -Math.atan(1.5);
       }
@@ -91,11 +93,11 @@ export class Enemies {
   update(delta, gameContext) {
     this.spawnTimer -= delta;
     if (this.spawnTimer <= 0) {
-      this.spawnEntity();
+      this.spawnEntity(gameContext);
       this.spawnTimer = this.spawnRate;
-      // Slightly increase difficulty over time
-      if (this.spawnRate > 0.5) {
-        this.spawnRate -= 0.02;
+      // Slightly increase difficulty over time, much more gradually now
+      if (this.spawnRate > 0.3) {
+        this.spawnRate -= 0.005; // Changed from 0.05 to 0.005 to make it slower
       }
     }
 
@@ -134,12 +136,13 @@ export class Enemies {
               entity.scale.set(1, 0.2, 1);
               // Readjust y so it looks like it's flat on the ground
               let targetBaseY = 0;
-              if (Math.abs(entity.position.x) > 20) targetBaseY = (Math.abs(entity.position.x) - 20) * 1.5;
+              const isOpenGround = gameContext && gameContext.score > 500;
+              if (!isOpenGround && Math.abs(entity.position.x) > 20) targetBaseY = (Math.abs(entity.position.x) - 20) * 1.5;
               entity.position.y = targetBaseY + 0.5;
               gameContext.addScore(100);
             } else {
               // Player hit an enemy without attacking or hit an obstacle
-              this.player.takeDamage(20);
+              this.player.takeDamage(10); // Reduced from 20 to 10
               entity.userData.active = false; // Prevent continuous damage
               
               // Flash player red
@@ -165,6 +168,6 @@ export class Enemies {
     }
     this.entities = [];
     this.spawnTimer = 0;
-    this.spawnRate = 1.5;
+    this.spawnRate = 0.8;
   }
 }

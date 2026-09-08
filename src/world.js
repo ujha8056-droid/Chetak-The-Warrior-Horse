@@ -103,11 +103,26 @@ export class World {
     this.terrainChunks.push(mesh);
   }
 
-  update(delta) {
+  update(delta, score = 0) {
+    const isOpenGround = score > 500;
+    const isForest = score > 1000;
+    
+    // Smoothly transition terrain colors based on score
+    let targetHex = 0xc49d29; // Default haldighati yellow
+    if (isForest) {
+      targetHex = 0x4a7c29; // Lush green forest path
+    } else if (isOpenGround) {
+      targetHex = 0x8b5a2b; // Darker brown open ground
+    }
+    const targetColor = new THREE.Color(targetHex);
+
     // Move terrain towards camera to simulate running
     for (let i = 0; i < this.terrainChunks.length; i++) {
       const chunk = this.terrainChunks[i];
       chunk.position.z += this.chunkSpeed * delta;
+      
+      // Lerp color smoothly
+      chunk.material.color.lerp(targetColor, delta * 1.5);
 
       // If chunk goes behind camera, move it to the front
       if (chunk.position.z > this.chunkSize) {
@@ -124,7 +139,7 @@ export class World {
         const pos = chunk.geometry.attributes.position;
         for (let v = 0; v < pos.count; v++) {
           const x = pos.getX(v);
-          if (Math.abs(x) > 20) {
+          if (!isOpenGround && Math.abs(x) > 20) {
              const height = (Math.abs(x) - 20) * 1.5 + Math.random() * 5;
              pos.setY(v, height);
           } else {

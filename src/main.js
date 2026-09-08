@@ -97,9 +97,7 @@ class Game {
     this.uiElements.score.innerText = '0';
     
     // Reset player
-    this.player.health = 100;
-    this.uiElements.healthFill.style.width = '100%';
-    this.player.group.position.x = 0;
+    this.player.reset();
     
     // Reset enemies
     this.enemies.reset();
@@ -130,8 +128,8 @@ class Game {
       // Small passive score increase for surviving
       this.addScore(10 * delta);
       
-      this.world.update(delta);
-      this.player.update(delta);
+      this.world.update(delta, this.score);
+      this.player.update(delta, this.score);
       this.enemies.update(delta, this);
       
       if (this.player.health <= 0) {
