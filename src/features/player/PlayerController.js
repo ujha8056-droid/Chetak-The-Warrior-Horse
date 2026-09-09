@@ -23,6 +23,14 @@ export class PlayerController {
     // Input state
     this.keys = { left: false, right: false };
     
+    // Animation state
+    this.animTime = 0;
+    
+    // Event flags for Game.js
+    this.justLanded = false;
+    this.justDamaged = false;
+    this.justAttacked = false;
+    
     this.initMesh();
     this.setupInput();
   }
@@ -63,6 +71,7 @@ export class PlayerController {
     neck.rotation.x = Math.PI / 6;
     neck.castShadow = true;
     this.horseGroup.add(neck);
+    this.neck = neck;
 
     // Horse Head
     const headGeo = new THREE.BoxGeometry(1.2, 1.2, 2);
@@ -71,6 +80,7 @@ export class PlayerController {
     head.rotation.x = Math.PI / 8;
     head.castShadow = true;
     this.horseGroup.add(head);
+    this.head = head;
 
     // Horse Mane
     const maneGeo = new THREE.BoxGeometry(0.4, 2.5, 1.5);
@@ -79,6 +89,7 @@ export class PlayerController {
     mane.rotation.x = Math.PI / 6;
     mane.castShadow = true;
     this.horseGroup.add(mane);
+    this.mane = mane;
 
     // Horse Tail
     const tailGeo = new THREE.BoxGeometry(0.5, 2, 0.5);
@@ -87,6 +98,7 @@ export class PlayerController {
     tail.rotation.x = -Math.PI / 8;
     tail.castShadow = true;
     this.horseGroup.add(tail);
+    this.tail = tail;
 
     // Horse Legs
     const legGeo = new THREE.BoxGeometry(0.6, 2, 0.6);
@@ -217,6 +229,7 @@ export class PlayerController {
   attack() {
     this.isAttacking = true;
     this.attackTimer = 0.3; // Attack lasts for 0.3 seconds
+    this.justAttacked = true;
   }
 
   flashRed() {
@@ -242,17 +255,13 @@ export class PlayerController {
   takeDamage(amount) {
     this.health -= amount;
     if (this.health < 0) this.health = 0;
+    this.justDamaged = true;
     
     // Update UI health bar
     const healthFill = document.getElementById('health-fill');
     if (healthFill) {
       healthFill.style.width = `${this.health}%`;
     }
-  }
-
-  fallIntoPit() {
-    this.isFalling = true;
-    this.takeDamage(100); // Instantly die
   }
 
   reset() {
@@ -262,6 +271,10 @@ export class PlayerController {
     this.yVelocity = 0;
     this.isAttacking = false;
     this.attackTimer = 0;
+    this.animTime = 0;
+    this.justLanded = false;
+    this.justDamaged = false;
+    this.justAttacked = false;
     
     // Reset positions and rotations to default
     this.group.position.set(0, 0, 20);
@@ -276,7 +289,9 @@ export class PlayerController {
     }
   }
 
-  update(delta, score = 0) {
+  update(delta, score = 0, gameSpeed = 1.0) {
+    this.animTime += delta * gameSpeed;
+
     if (this.isFalling) {
       this.group.position.y -= 50 * delta;
       this.horseGroup.rotation.x -= 10 * delta;
@@ -322,17 +337,36 @@ export class PlayerController {
         this.isJumping = false;
         this.yVelocity = 0;
         this.horseGroup.rotation.x = 0;
+        this.justLanded = true;
       }
     } else {
       // Horse galloping animation (only when grounded)
-      this.group.position.y = targetBaseY + Math.abs(Math.sin(Date.now() * 0.01)) * 0.4;
+      const gallopSpeed = 15;
+      const t = this.animTime * gallopSpeed;
       
-      // Leg animation
-      const time = Date.now() * 0.015;
-      this.legs[0].rotation.x = Math.sin(time) * 0.5; // Front left
-      this.legs[1].rotation.x = Math.sin(time + Math.PI) * 0.5; // Front right
-      this.legs[2].rotation.x = Math.sin(time + Math.PI) * 0.5; // Back left
-      this.legs[3].rotation.x = Math.sin(time) * 0.5; // Back right
+      // Body bounce
+      this.group.position.y = targetBaseY + Math.abs(Math.sin(t)) * 0.4;
+      
+      // Neck and head movement
+      if (this.neck) this.neck.rotation.x = Math.PI / 6 + Math.sin(t) * 0.1;
+      if (this.head) this.head.rotation.x = Math.PI / 8 + Math.sin(t + 0.5) * 0.1;
+      
+      // Mane and tail sway
+      if (this.mane) this.mane.rotation.x = Math.PI / 6 - Math.abs(Math.sin(t)) * 0.15;
+      if (this.tail) {
+        this.tail.rotation.x = -Math.PI / 8 + Math.sin(t) * 0.2;
+        this.tail.rotation.z = Math.sin(t * 0.5) * 0.1; // Swing left/right
+      }
+      
+      // Rider bounce and lean forward with speed
+      this.riderGroup.position.y = Math.abs(Math.sin(t - 0.2)) * 0.2;
+      this.riderGroup.rotation.x = (gameSpeed - 1.0) * -0.1; // Lean forward slightly at high speed
+      
+      // 4-Leg animation with phase offsets
+      this.legs[0].rotation.x = Math.sin(t) * 0.6; // Front left
+      this.legs[1].rotation.x = Math.sin(t - Math.PI * 0.2) * 0.6; // Front right (delayed)
+      this.legs[2].rotation.x = Math.sin(t - Math.PI * 1.0) * 0.6; // Back left
+      this.legs[3].rotation.x = Math.sin(t - Math.PI * 1.2) * 0.6; // Back right (delayed)
     }
 
     // Attack animation

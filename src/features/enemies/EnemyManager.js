@@ -20,8 +20,8 @@ export class EnemyManager {
       const mat = new THREE.MeshStandardMaterial({ color: 0xaa2222, flatShading: true }); // Red armor
       mesh = new THREE.Mesh(geo, mat);
       mesh.userData = { type: 'enemy', active: true, baseOffset: 2 };
-    } else if (rand > 0.1) {
-      // Obstacle (Tree or Big Rock, 30% chance)
+    } else {
+      // Obstacle (Tree or Big Rock, 40% chance)
       mesh = new THREE.Group();
       if (Math.random() > 0.5) {
         // Tree
@@ -52,13 +52,6 @@ export class EnemyManager {
         
         mesh.userData = { type: 'obstacle', active: true, baseOffset: 0, height: 3.5 }; // Can barely be jumped over
       }
-    } else {
-      // Pitfall (10% chance)
-      const geo = new THREE.PlaneGeometry(8, 8);
-      const mat = new THREE.MeshBasicMaterial({ color: 0x000000 }); // Black hole
-      mesh = new THREE.Mesh(geo, mat);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.userData = { type: 'pitfall', active: true, baseOffset: 0.1 };
     }
 
     // Spawn far away in the negative z direction
@@ -66,22 +59,16 @@ export class EnemyManager {
     
     const isOpenGround = gameContext && gameContext.score > 500;
 
-    if (mesh.userData.type === 'pitfall') {
-      // Spawn pitfall on the flat ground only
-      mesh.position.x = (Math.random() - 0.5) * 30;
-      mesh.position.y = mesh.userData.baseOffset;
-    } else {
-      // Spawn enemies and rocks anywhere including side walls
-      mesh.position.x = (Math.random() - 0.5) * 60; // -30 to 30
-      
-      // Calculate y and rotation if on the wall
-      let targetBaseY = 0;
-      if (!isOpenGround && Math.abs(mesh.position.x) > 20) {
-        targetBaseY = (Math.abs(mesh.position.x) - 20) * 1.5;
-        mesh.rotation.z = mesh.position.x > 0 ? Math.atan(1.5) : -Math.atan(1.5);
-      }
-      mesh.position.y = targetBaseY + mesh.userData.baseOffset;
+    // Spawn enemies and rocks anywhere including side walls
+    mesh.position.x = (Math.random() - 0.5) * 60; // -30 to 30
+    
+    // Calculate y and rotation if on the wall
+    let targetBaseY = 0;
+    if (!isOpenGround && Math.abs(mesh.position.x) > 20) {
+      targetBaseY = (Math.abs(mesh.position.x) - 20) * 1.5;
+      mesh.rotation.z = mesh.position.x > 0 ? Math.atan(1.5) : -Math.atan(1.5);
     }
+    mesh.position.y = targetBaseY + mesh.userData.baseOffset;
     
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -90,14 +77,16 @@ export class EnemyManager {
     this.entities.push(mesh);
   }
 
-  update(delta, gameContext) {
-    this.spawnTimer -= delta;
+  update(delta, gameContext, gameSpeed = 1.0) {
+    // Make spawn timer tick faster based on gameSpeed
+    this.spawnTimer -= delta * gameSpeed;
     if (this.spawnTimer <= 0) {
       this.spawnEntity(gameContext);
       this.spawnTimer = this.spawnRate;
-      // Slightly increase difficulty over time, much more gradually now
-      if (this.spawnRate > 0.3) {
-        this.spawnRate -= 0.005; // Changed from 0.05 to 0.005 to make it slower
+      
+      // Increase difficulty over time by decreasing the base spawn interval
+      if (this.spawnRate > 0.2) {
+        this.spawnRate -= 0.01; // Faster decrement to increase difficulty noticeably
       }
     }
 
@@ -105,21 +94,15 @@ export class EnemyManager {
     for (let i = this.entities.length - 1; i >= 0; i--) {
       const entity = this.entities[i];
       
-      // Move towards player
-      entity.position.z += this.speed * delta;
+      // Move towards player (match terrain speed)
+      entity.position.z += this.speed * gameSpeed * delta;
       
       // Collision detection (Simple bounding box)
       const dx = Math.abs(entity.position.x - this.player.group.position.x);
       const dz = Math.abs(entity.position.z - this.player.group.position.z);
       
       if (entity.userData.active) {
-        if (entity.userData.type === 'pitfall') {
-          // Special pitfall collision (only triggers if player is on the ground)
-          if (dx < 3.5 && dz < 3.5 && this.player.group.position.y < entity.position.y + 1) {
-            this.player.fallIntoPit();
-            entity.userData.active = false;
-          }
-        } else if (dx < 2.5 && dz < 3.5) {
+        if (dx < 2.5 && dz < 3.5) {
           // Standard collision for enemies/rocks
           
           // Check Y (Jump)

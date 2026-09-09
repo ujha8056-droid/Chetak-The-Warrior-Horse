@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SceneryManager } from './SceneryManager.js';
 
 export class WorldManager {
   constructor(scene) {
@@ -10,6 +11,9 @@ export class WorldManager {
     this.initLighting();
     this.initSkybox();
     this.initParticles();
+    this.initHoofDust();
+    
+    this.sceneryManager = new SceneryManager(this.scene);
     
     // Create initial terrain chunks
     for (let i = 0; i < 3; i++) {
@@ -70,6 +74,65 @@ export class WorldManager {
     this.scene.add(this.particles);
   }
 
+  createCircleTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const context = canvas.getContext('2d');
+    const gradient = context.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 32, 32);
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  initHoofDust() {
+    this.hoofDustCount = 30; // Object pool size
+    this.hoofDustIndex = 0;
+    
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(this.hoofDustCount * 3);
+    
+    // Hide initially by placing far away
+    for (let i = 0; i < this.hoofDustCount * 3; i++) {
+      positions[i] = 9999;
+    }
+    
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    
+    const material = new THREE.PointsMaterial({
+      color: 0xc49d29,
+      size: 4.0,
+      transparent: true,
+      opacity: 0.6,
+      map: this.createCircleTexture(),
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    
+    this.hoofDust = new THREE.Points(geometry, material);
+    this.scene.add(this.hoofDust);
+    
+    this.hoofDustLifetimes = new Float32Array(this.hoofDustCount);
+  }
+
+  spawnHoofDust(x, y, z) {
+    if (!this.hoofDust) return;
+    
+    const positions = this.hoofDust.geometry.attributes.position.array;
+    const idx = this.hoofDustIndex * 3;
+    
+    positions[idx] = x + (Math.random() - 0.5) * 3;
+    positions[idx+1] = y + Math.random() * 2; // Slight vertical random
+    positions[idx+2] = z + (Math.random() - 0.5) * 3;
+    
+    this.hoofDustLifetimes[this.hoofDustIndex] = 1.0; // 1 second lifetime
+    
+    this.hoofDustIndex = (this.hoofDustIndex + 1) % this.hoofDustCount;
+    this.hoofDust.geometry.attributes.position.needsUpdate = true;
+  }
+
   createTerrainChunk(zPos) {
     const geometry = new THREE.PlaneGeometry(150, this.chunkSize, 32, 32);
     geometry.rotateX(-Math.PI / 2);
@@ -97,13 +160,20 @@ export class WorldManager {
     });
 
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.z = zPos;
     mesh.receiveShadow = true;
-    this.scene.add(mesh);
-    this.terrainChunks.push(mesh);
+    
+    const chunkGroup = new THREE.Group();
+    chunkGroup.position.z = zPos;
+    chunkGroup.add(mesh);
+    chunkGroup.groundMesh = mesh; // Keep reference to ground mesh
+    
+    this.scene.add(chunkGroup);
+    this.terrainChunks.push(chunkGroup);
+    
+    this.sceneryManager.generateScenery(chunkGroup, 0);
   }
 
-  update(delta, score = 0) {
+  update(delta, score = 0, gameSpeed = 1.0, playerPosition = null) {
     const isOpenGround = score > 500;
     const isForest = score > 1000;
     
@@ -117,12 +187,13 @@ export class WorldManager {
     const targetColor = new THREE.Color(targetHex);
 
     // Move terrain towards camera to simulate running
+    const currentSpeed = this.chunkSpeed * gameSpeed;
     for (let i = 0; i < this.terrainChunks.length; i++) {
       const chunk = this.terrainChunks[i];
-      chunk.position.z += this.chunkSpeed * delta;
+      chunk.position.z += currentSpeed * delta;
       
       // Lerp color smoothly
-      chunk.material.color.lerp(targetColor, delta * 1.5);
+      chunk.groundMesh.material.color.lerp(targetColor, delta * 1.5);
 
       // If chunk goes behind camera, move it to the front
       if (chunk.position.z > this.chunkSize) {
@@ -135,8 +206,10 @@ export class WorldManager {
         }
         chunk.position.z = minZ - this.chunkSize;
         
+        this.sceneryManager.generateScenery(chunk, score);
+        
         // Slightly randomize the vertices again for variety
-        const pos = chunk.geometry.attributes.position;
+        const pos = chunk.groundMesh.geometry.attributes.position;
         for (let v = 0; v < pos.count; v++) {
           const x = pos.getX(v);
           if (!isOpenGround && Math.abs(x) > 20) {
@@ -146,16 +219,20 @@ export class WorldManager {
              pos.setY(v, Math.random() * 0.5);
           }
         }
-        chunk.geometry.computeVertexNormals();
-        chunk.geometry.attributes.position.needsUpdate = true;
+        chunk.groundMesh.geometry.computeVertexNormals();
+        chunk.groundMesh.geometry.attributes.position.needsUpdate = true;
       }
+    }
+    
+    if (playerPosition) {
+      this.sceneryManager.update(delta, playerPosition);
     }
 
     // Animate particles
     if (this.particles) {
       const positions = this.particles.geometry.attributes.position.array;
       for (let i = 0; i < positions.length; i += 3) {
-        positions[i + 2] += this.chunkSpeed * delta * 0.5; // Dust moves towards camera
+        positions[i + 2] += currentSpeed * delta * 0.5; // Dust moves towards camera
         positions[i] += Math.sin(Date.now() * 0.001 + positions[i + 1]) * 0.1; // Sway
         
         // Loop particles
@@ -164,6 +241,28 @@ export class WorldManager {
         }
       }
       this.particles.geometry.attributes.position.needsUpdate = true;
+    }
+
+    // Animate hoof dust
+    if (this.hoofDust) {
+      const positions = this.hoofDust.geometry.attributes.position.array;
+      let needsUpdate = false;
+      for (let i = 0; i < this.hoofDustCount; i++) {
+        if (this.hoofDustLifetimes[i] > 0) {
+          this.hoofDustLifetimes[i] -= delta * 2; // Fade out fast
+          const idx = i * 3;
+          positions[idx+1] += delta * 2; // Float up
+          positions[idx+2] += currentSpeed * delta; // Move towards camera
+          
+          if (this.hoofDustLifetimes[i] <= 0) {
+            positions[idx+1] = 9999; // Hide
+          }
+          needsUpdate = true;
+        }
+      }
+      if (needsUpdate) {
+        this.hoofDust.geometry.attributes.position.needsUpdate = true;
+      }
     }
   }
 }

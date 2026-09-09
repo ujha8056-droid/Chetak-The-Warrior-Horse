@@ -11,6 +11,13 @@ export class Game {
     this.state = 'start'; // start, playing, gameover
     this.score = 0;
     
+    // Camera state
+    this.cameraShake = 0;
+    this.cameraBobTime = 0;
+    this.cameraTarget = new THREE.Vector3();
+    this.currentFOV = 60;
+    this.currentTilt = 0;
+    
     this.initThree();
     this.initGameObjects();
     this.initUI();
@@ -116,6 +123,79 @@ export class Game {
     this.uiElements.score.innerText = Math.floor(this.score);
   }
 
+  updateCamera(delta, gameSpeed) {
+    // 1. Base Follow
+    const playerX = this.player.group.position.x;
+    const playerY = this.player.group.position.y;
+    const playerZ = this.player.group.position.z;
+
+    this.cameraTarget.set(playerX * 0.6, 15 + playerY * 0.3, playerZ + 25);
+    
+    // Jump effect: Follow jump smoothly
+    if (this.player.isJumping) {
+      this.cameraTarget.y += 2;
+    }
+
+    this.camera.position.lerp(this.cameraTarget, 5 * delta);
+
+    // 2. Camera Bob
+    if (!this.player.isJumping) {
+      this.cameraBobTime += delta * gameSpeed * 15;
+      const bobAmount = 0.4 * gameSpeed;
+      this.camera.position.y += Math.sin(this.cameraBobTime) * bobAmount * delta;
+    }
+
+    // 3. Effects / Shakes
+    if (this.player.justDamaged) {
+      this.cameraShake = 1.5;
+      this.player.justDamaged = false;
+    }
+    if (this.player.justLanded) {
+      this.cameraShake = 0.5;
+      this.player.justLanded = false;
+    }
+    if (this.player.justAttacked) {
+      this.cameraShake = 0.4;
+      this.camera.position.z -= 1.5; // Slight forward push
+      this.player.justAttacked = false;
+    }
+
+    if (this.cameraShake > 0) {
+      this.camera.position.x += (Math.random() - 0.5) * this.cameraShake;
+      this.camera.position.y += (Math.random() - 0.5) * this.cameraShake;
+      this.cameraShake -= delta * 5;
+      if (this.cameraShake < 0) this.cameraShake = 0;
+    }
+
+    // 4. LookAt and Tilt
+    const lookTarget = new THREE.Vector3(playerX * 0.3, playerY + 2, playerZ - 30);
+    this.camera.lookAt(lookTarget);
+    
+    // Subtly tilt left/right based on lateral movement
+    let targetTilt = 0;
+    if (this.player.keys.left) targetTilt = 0.03;
+    if (this.player.keys.right) targetTilt = -0.03;
+    
+    // Apply smooth roll
+    this.currentTilt = THREE.MathUtils.lerp(this.currentTilt, targetTilt, 5 * delta);
+    this.camera.rotateZ(this.currentTilt);
+
+    // 5. Speed-based FOV and Post-processing
+    const targetFOV = 60 + (gameSpeed - 1.0) * 10;
+    this.currentFOV = THREE.MathUtils.lerp(this.currentFOV, targetFOV, 2 * delta);
+    if (Math.abs(this.camera.fov - this.currentFOV) > 0.1) {
+      this.camera.fov = this.currentFOV;
+      this.camera.updateProjectionMatrix();
+    }
+    
+    if (this.composer.passes.length > 1) {
+      const bloomPass = this.composer.passes[1];
+      if (bloomPass.strength !== undefined) {
+         bloomPass.strength = 0.4 + (gameSpeed - 1.0) * 0.4;
+      }
+    }
+  }
+
   animate() {
     requestAnimationFrame(() => this.animate());
     
@@ -127,9 +207,25 @@ export class Game {
       // Small passive score increase for surviving
       this.addScore(10 * delta);
       
-      this.world.update(delta, this.score);
-      this.player.update(delta, this.score);
-      this.enemies.update(delta, this);
+      // Calculate speed progression (caps at 2.0x base speed)
+      const gameSpeed = Math.min(1.0 + (this.score / 1500), 2.0);
+      
+      this.world.update(delta, this.score, gameSpeed, this.player.group.position);
+      this.player.update(delta, this.score, gameSpeed);
+      this.enemies.update(delta, this, gameSpeed);
+      
+      this.updateCamera(delta, gameSpeed);
+      
+      // Periodically spawn hoof dust when galloping
+      if (!this.player.isJumping) {
+         if (Math.random() < delta * 6 * gameSpeed) { 
+            this.world.spawnHoofDust(
+               this.player.group.position.x,
+               this.player.group.position.y,
+               this.player.group.position.z + 1.5 // Near the back legs
+            );
+         }
+      }
       
       if (this.player.health <= 0) {
         this.gameOver();
