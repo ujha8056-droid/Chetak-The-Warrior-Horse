@@ -94,6 +94,43 @@ export class EnemyManager {
     for (let i = this.entities.length - 1; i >= 0; i--) {
       const entity = this.entities[i];
       
+      if (entity.userData.type === 'enemy') {
+        if (entity.userData.justHit) {
+          entity.userData.justHit = false;
+          entity.userData.originalColor = entity.material.color.getHex();
+          entity.material.color.setHex(0xffffff); // White flash
+          entity.userData.flashTimer = 0.15;
+        }
+        
+        if (entity.userData.flashTimer > 0) {
+          entity.userData.flashTimer -= delta;
+          if (entity.userData.flashTimer <= 0) {
+            entity.material.color.setHex(entity.userData.originalColor);
+          }
+        }
+
+        if (entity.userData.knockback) {
+          entity.position.addScaledVector(entity.userData.knockback, delta * 15);
+          entity.userData.knockback.lerp(new THREE.Vector3(0,0,0), delta * 15);
+          if (entity.userData.knockback.lengthSq() < 0.1) {
+            entity.userData.knockback = null;
+          }
+        }
+
+        if (entity.userData.isDead) {
+          entity.rotation.x -= delta * 5; // Fall backward
+          entity.position.y -= delta * 5; // Sink
+          if (entity.rotation.x < -Math.PI / 2) entity.rotation.x = -Math.PI / 2;
+          
+          // Remove dead entities that have sunk
+          if (entity.position.y < -10) {
+            this.scene.remove(entity);
+            this.entities.splice(i, 1);
+          }
+          continue; // Skip collision and movement forward
+        }
+      }
+
       // Move towards player (match terrain speed)
       entity.position.z += this.speed * gameSpeed * delta;
       
@@ -111,27 +148,13 @@ export class EnemyManager {
           const isJumpingOver = entity.userData.type === 'obstacle' && this.player.group.position.y > entity.position.y + obstacleHeight;
           
           if (!isJumpingOver) {
-            if (entity.userData.type === 'enemy' && this.player.isAttacking) {
-              // Player defeated the enemy
-              entity.userData.active = false;
-              // Visual feedback for defeated enemy
-              entity.material.color.setHex(0x555555);
-              entity.scale.set(1, 0.2, 1);
-              // Readjust y so it looks like it's flat on the ground
-              let targetBaseY = 0;
-              const isOpenGround = gameContext && gameContext.score > 500;
-              if (!isOpenGround && Math.abs(entity.position.x) > 20) targetBaseY = (Math.abs(entity.position.x) - 20) * 1.5;
-              entity.position.y = targetBaseY + 0.5;
-              gameContext.addScore(100);
-            } else {
-              // Player hit an enemy without attacking or hit an obstacle
-              this.player.takeDamage(10); // Reduced from 20 to 10
-              entity.userData.active = false; // Prevent continuous damage
-              
-              // Flash player red
-              if (this.player.flashRed) {
-                this.player.flashRed();
-              }
+            // Player hit an enemy or hit an obstacle
+            this.player.takeDamage(10);
+            entity.userData.active = false; // Prevent continuous damage
+            
+            // Flash player red
+            if (this.player.flashRed) {
+              this.player.flashRed();
             }
           }
         }

@@ -211,7 +211,7 @@ export class Game {
       const gameSpeed = Math.min(1.0 + (this.score / 1500), 2.0);
       
       this.world.update(delta, this.score, gameSpeed, this.player.group.position);
-      this.player.update(delta, this.score, gameSpeed);
+      this.player.update(delta, this.score, gameSpeed, this.enemies.entities, this);
       this.enemies.update(delta, this, gameSpeed);
       
       this.updateCamera(delta, gameSpeed);

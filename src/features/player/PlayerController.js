@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CombatSystem } from '../combat/CombatSystem.js';
 
 export class PlayerController {
   constructor(scene) {
@@ -6,8 +7,8 @@ export class PlayerController {
     
     // Player State
     this.health = 100;
-    this.isAttacking = false;
-    this.attackTimer = 0;
+    
+    this.combat = new CombatSystem(scene, this);
     
     // Jump mechanics
     this.isJumping = false;
@@ -218,6 +219,8 @@ export class PlayerController {
     });
   }
 
+  get isAttacking() { return this.combat.isAttacking; }
+
   jump() {
     this.isJumping = true;
     this.yVelocity = this.jumpStrength;
@@ -227,8 +230,7 @@ export class PlayerController {
   }
 
   attack() {
-    this.isAttacking = true;
-    this.attackTimer = 0.3; // Attack lasts for 0.3 seconds
+    this.combat.attack();
     this.justAttacked = true;
   }
 
@@ -269,8 +271,9 @@ export class PlayerController {
     this.isFalling = false;
     this.isJumping = false;
     this.yVelocity = 0;
-    this.isAttacking = false;
-    this.attackTimer = 0;
+    this.combat.comboStep = 0;
+    this.combat.isAttacking = false;
+    this.combat.attackPhase = 'idle';
     this.animTime = 0;
     this.justLanded = false;
     this.justDamaged = false;
@@ -289,7 +292,9 @@ export class PlayerController {
     }
   }
 
-  update(delta, score = 0, gameSpeed = 1.0) {
+  update(delta, score = 0, gameSpeed = 1.0, enemies = null, gameContext = null) {
+    this.combat.update(delta, enemies, gameContext);
+    
     this.animTime += delta * gameSpeed;
 
     if (this.isFalling) {
@@ -369,18 +374,40 @@ export class PlayerController {
       this.legs[3].rotation.x = Math.sin(t - Math.PI * 1.2) * 0.6; // Back right (delayed)
     }
 
-    // Attack animation
-    if (this.isAttacking) {
-      this.attackTimer -= delta;
-      // Swing sword forward (rotate arm)
-      this.rightArmGroup.rotation.x = THREE.MathUtils.lerp(this.rightArmGroup.rotation.x, -Math.PI / 1.5, 20 * delta);
+    // Attack animation handled by combat phase
+    if (this.combat.isAttacking) {
+      let targetRotX = 0;
+      let targetRotZ = 0;
+      let targetRotY = 0;
       
-      if (this.attackTimer <= 0) {
-        this.isAttacking = false;
+      if (this.combat.attackPhase === 'prep') {
+        // Move arm back
+        targetRotX = Math.PI / 4;
+        targetRotZ = Math.PI / 8;
+        if (this.combat.comboStep === 2) targetRotX = Math.PI / 3;
+        if (this.combat.comboStep === 3) { targetRotX = Math.PI / 2; targetRotZ = Math.PI / 4; }
+      } else if (this.combat.attackPhase === 'swing') {
+        // Swing forward
+        targetRotX = -Math.PI / 1.5;
+        if (this.combat.comboStep === 2) { targetRotX = -Math.PI / 1.2; targetRotZ = -Math.PI / 4; }
+        if (this.combat.comboStep === 3) { targetRotX = -Math.PI / 1.8; targetRotY = Math.PI / 4; }
+      } else if (this.combat.attackPhase === 'recover') {
+        targetRotX = 0;
+      }
+      
+      this.rightArmGroup.rotation.x = THREE.MathUtils.lerp(this.rightArmGroup.rotation.x, targetRotX, 20 * delta);
+      this.rightArmGroup.rotation.z = THREE.MathUtils.lerp(this.rightArmGroup.rotation.z, targetRotZ, 20 * delta);
+      this.rightArmGroup.rotation.y = THREE.MathUtils.lerp(this.rightArmGroup.rotation.y, targetRotY, 20 * delta);
+      
+      // Rider lean
+      if (this.combat.attackPhase === 'swing') {
+         this.riderGroup.rotation.x = THREE.MathUtils.lerp(this.riderGroup.rotation.x, -0.2, 10 * delta);
       }
     } else {
       // Return arm to resting position
       this.rightArmGroup.rotation.x = THREE.MathUtils.lerp(this.rightArmGroup.rotation.x, 0, 10 * delta);
+      this.rightArmGroup.rotation.z = THREE.MathUtils.lerp(this.rightArmGroup.rotation.z, 0, 10 * delta);
+      this.rightArmGroup.rotation.y = THREE.MathUtils.lerp(this.rightArmGroup.rotation.y, 0, 10 * delta);
     }
   }
 }
